@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, send_from_directory, jsonify
 from flask_socketio import SocketIO, emit, join_room
 import sqlite3
@@ -74,3 +77,4 @@ def handle_message(data):
 if __name__ == '__main__':
     init_db()
     socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
