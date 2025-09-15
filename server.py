@@ -1,80 +1,74 @@
 import eventlet
-eventlet.monkey_patch()
+eventlet.monkey_patch()  # ✅ must come before any other imports
 
-from flask import Flask, send_from_directory, jsonify
-from flask_socketio import SocketIO, emit, join_room
-import sqlite3
+from flask import Flask, render_template, request, redirect, url_for, session
+from flask_socketio import SocketIO, send, emit, join_room, leave_room
 import os
 
-app = Flask(__name__, static_folder='.')
-socketio = SocketIO(app, cors_allowed_origins="*")
+app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "mysecret")
 
-DB_FILE = "messages.db"
+# Initialize SocketIO with eventlet
+socketio = SocketIO(app, async_mode='eventlet')
 
-# ---------- Database Helpers ----------
-def get_db_connection():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
+# In-memory user store (replace with database in production)
+users = {}
 
-def init_db():
-    conn = get_db_connection()
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            room TEXT NOT NULL,
-            user_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            text TEXT NOT NULL,
-            timestamp TEXT NOT NULL
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-# ---------- Routes ----------
-@app.route('/')
+@app.route("/")
 def index():
-    return send_from_directory('.', 'index.html')
+    if "username" in session:
+        return render_template("chat.html", username=session["username"])
+    return redirect(url_for("login"))
 
-@app.route('/Link.html')
-def link():
-    return send_from_directory('.', 'Link.html')
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
 
-@app.route('/styles.css')
-def styles():
-    return send_from_directory('.', 'styles.css')
+        if username in users and users[username] == password:
+            session["username"] = username
+            return redirect(url_for("index"))
+        else:
+            return "Invalid username or password", 401
+    return render_template("login.html")
 
-@app.route('/history/<room>')
-def history(room):
-    conn = get_db_connection()
-    rows = conn.execute(
-        "SELECT id, room, user_id, name, text, timestamp FROM messages WHERE room=? ORDER BY id ASC",
-        (room,)
-    ).fetchall()
-    conn.close()
-    return jsonify([dict(r) for r in rows])
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
 
-# ---------- Socket Events ----------
-@socketio.on('join')
-def on_join(data):
-    room = data['room']
+        if username in users:
+            return "Username already exists", 400
+        users[username] = password
+        session["username"] = username
+        return redirect(url_for("index"))
+    return render_template("register.html")
+
+@app.route("/logout")
+def logout():
+    session.pop("username", None)
+    return redirect(url_for("login"))
+
+# --- SocketIO Events ---
+@socketio.on("message")
+def handle_message(msg):
+    username = session.get("username", "Anonymous")
+    send({"msg": msg, "user": username}, broadcast=True)
+
+@socketio.on("join")
+def handle_join(data):
+    room = data["room"]
     join_room(room)
+    send({"msg": f"{session['username']} has joined the room {room}."}, to=room)
 
-@socketio.on('message')
-def handle_message(data):
-    room = data['room']
-    conn = get_db_connection()
-    conn.execute(
-        "INSERT INTO messages (room, user_id, name, text, timestamp) VALUES (?, ?, ?, ?, ?)",
-        (room, data['userId'], data['name'], data['text'], data['at'])
-    )
-    conn.commit()
-    conn.close()
-    emit('message', data, room=room)
+@socketio.on("leave")
+def handle_leave(data):
+    room = data["room"]
+    leave_room(room)
+    send({"msg": f"{session['username']} has left the room {room}."}, to=room)
 
-# ---------- Entry Point ----------
-if __name__ == '__main__':
-    init_db()
-    socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-
+# --- Run for local dev ---
+if __name__ == "__main__":
+    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
