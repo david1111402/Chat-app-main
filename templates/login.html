@@ -6,12 +6,12 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-  <div class="form-container">
+  <div class="chat-container">
     <h2>Login</h2>
-    <form method="POST">
+    <form action="{{ url_for('login') }}" method="post" class="form-box">
       <input type="text" name="username" placeholder="Username" required><br>
       <input type="password" name="password" placeholder="Password" required><br>
-      <button type="submit">Login</button>
+      <button type="submit" class="btn">Login</button>
     </form>
     <p>No account? <a href="{{ url_for('signup') }}">Sign up</a></p>
   </div>
