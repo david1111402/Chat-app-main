@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Welcome</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="chat-container">
+    <h1>Welcome to Chat App</h1>
+    <p>Connect with friends, chat in real-time, and make video calls.</p>
+    <div class="button-group">
+      <a href="{{ url_for('login') }}" class="btn">Login</a>
+      <a href="{{ url_for('signup') }}" class="btn">Sign Up</a>
+    </div>
+  </div>
+</body>
+</html>
