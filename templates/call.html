@@ -2,42 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>LINK Call</title>
+  <title>Video Call</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-  <h1>LINK Video Call</h1>
-  <div>
-    <video id="localVideo" autoplay playsinline muted></video>
-    <video id="remoteVideo" autoplay playsinline></video>
+  <div class="chat-container">
+    <h2>Video Call Room</h2>
+    <div id="video-grid"></div>
+    <div class="button-group">
+      <button id="start-call" class="btn">Start Call</button>
+      <button id="end-call" class="btn">End Call</button>
+      <a href="{{ url_for('chat') }}" class="btn">Back to Chat</a>
+    </div>
   </div>
-  <div>
-    <button id="startBtn">Start Call</button>
-    <button id="endBtn">End Call</button>
-    <a href="/chat" class="btn">⬅ Back to Chat</a>
-  </div>
-
-  <script>
-    let localStream, pc;
-    const servers = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
-    const localVideo = document.getElementById("localVideo");
-    const remoteVideo = document.getElementById("remoteVideo");
-
-    document.getElementById("startBtn").onclick = async () => {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideo.srcObject = localStream;
-      pc = new RTCPeerConnection(servers);
-      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-      pc.ontrack = e => remoteVideo.srcObject = e.streams[0];
-      alert("⚠️ Demo mode: needs signaling server to connect two users");
-    };
-
-    document.getElementById("endBtn").onclick = () => {
-      if (pc) pc.close();
-      if (localStream) localStream.getTracks().forEach(t => t.stop());
-      localVideo.srcObject = null;
-      remoteVideo.srcObject = null;
-    };
-  </script>
+  <script src="/static/call.js"></script>
 </body>
 </html>
