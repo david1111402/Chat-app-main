@@ -1,97 +1,82 @@
 import eventlet
 eventlet.monkey_patch()
 
-from flask import Flask, render_template, request, redirect, url_for
-from flask_socketio import SocketIO, emit, join_room
-import sqlite3
+from flask import Flask, render_template, request, redirect, url_for, session
+from flask_socketio import SocketIO, send
 import os
 
-app = Flask(__name__, static_folder="static")
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", "supersecretkey")
 
-DB_FILE = "messages.db"
+# Initialize SocketIO with eventlet
+socketio = SocketIO(app, async_mode="eventlet")
 
+# In-memory user storage (replace with DB later if needed)
+users = {}
 
-# ---------- Database Helpers ----------
-def get_db_connection():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def init_db():
-    conn = get_db_connection()
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            room TEXT NOT NULL,
-            user_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            text TEXT NOT NULL,
-            timestamp TEXT NOT NULL
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-
-# ---------- Routes ----------
-@app.route('/')
+@app.route("/")
 def home():
+    if "user" in session:
+        return redirect(url_for("chat"))
     return redirect(url_for("login"))
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        # Here you’d normally validate username/password
-        return redirect(url_for("chat"))
-    return render_template("login.html")
-
-@app.route('/signup', methods=['GET', 'POST'])
+@app.route("/signup", methods=["GET", "POST"])
 def signup():
-    if request.method == 'POST':
-        # Collect signup form data
-        name = request.form.get("name")
-        email = request.form.get("email")
+    if request.method == "POST":
         username = request.form.get("username")
-        # For now, we just print — you could save to DB
-        print("New signup:", name, email, username)
+        email = request.form.get("email")
+        password = request.form.get("password")
+
+        if not username or not email or not password:
+            return "All fields are required!", 400
+
+        if username in users:
+            return "User already exists!", 400
+
+        # Save user in memory
+        users[username] = {"email": email, "password": password}
+
+        print(f"New signup: {username} {email}")
         return redirect(url_for("login"))
+
     return render_template("signup.html")
 
-@app.route('/chat')
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+
+        user = users.get(username)
+
+        if user and user["password"] == password:
+            session["user"] = {"name": username, "email": user["email"]}
+            print(f"User logged in: {username}")
+            return redirect(url_for("chat"))
+
+        return "Invalid username or password", 401
+
+    return render_template("login.html")
+
+@app.route("/chat")
 def chat():
-    return render_template("Link.html")
+    if "user" not in session:
+        return redirect(url_for("login"))
 
-@app.route('/history/<room>')
-def history(room):
-    conn = get_db_connection()
-    rows = conn.execute(
-        "SELECT id, room, user_id, name, text, timestamp FROM messages WHERE room=? ORDER BY id ASC",
-        (room,)
-    ).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    return render_template("Link.html", user=session["user"])
 
+@app.route("/logout")
+def logout():
+    session.pop("user", None)
+    return redirect(url_for("login"))
 
-# ---------- Socket Events ----------
-@socketio.on('join')
-def on_join(data):
-    room = data['room']
-    join_room(room)
+# SocketIO events
+@socketio.on("message")
+def handle_message(msg):
+    user = session.get("user", {}).get("name", "Anonymous")
+    full_msg = f"{user}: {msg}"
+    print(full_msg)
+    send(full_msg, broadcast=True)
 
-@socketio.on('message')
-def handle_message(data):
-    room = data['room']
-    conn = get_db_connection()
-    conn.execute(
-        "INSERT INTO messages (room, user_id, name, text, timestamp) VALUES (?, ?, ?, ?, ?)",
-        (room, data['userId'], data['name'], data['text'], data['at'])
-    )
-    conn.commit()
-    conn.close()
-    emit('message', data, room=room)
-
-
-if __name__ == '__main__':
-    init_db()
-    socketio.run(app, host='0.0.0.0', port=8080)
+if __name__ == "__main__":
+    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
