@@ -1,53 +1,178 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Chat App</title>
+  <meta charset="utf-8" />
+  <title>LINK Chatroom</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
-  <div id="app">
-    <h1>Welcome, {{ user['name'] }}</h1>
+  <header>
+    <div class="brand">LINK</div>
+    <div class="controls">
+      <label for="room" class="tiny">Room</label>
+      <select id="room"></select>
+      <button id="shareRoom" class="tiny">Share Room</button>
+      <button id="clearRoom" class="tiny">Clear Room</button>
 
-    <div id="log"></div>
+      <label for="shop" class="tiny">Shop</label>
+      <select id="shop">
+        <option value="">Select a sticker to buy</option>
+      </select>
+    </div>
+    <div class="controls">
+      <input id="displayName" type="text" placeholder="Display name" />
+      <button id="saveName">Save</button>
+      <span class="tiny" id="coinsDisplay">Coins: 0</span>
+    </div>
+  </header>
 
-    <textarea id="input" placeholder="Type a message..."></textarea>
-    <button id="send">Send</button>
-    <a href="{{ url_for('logout') }}">Logout</a>
-  </div>
+  <main id="log" aria-live="polite"></main>
+
+  <footer>
+    <div class="composer">
+      <input id="input" type="text" placeholder="Type a message and press Enter…" autocomplete="off" />
+      <button id="send">Send</button>
+    </div>
+    <div class="sticker-panel" id="stickerPanel"></div>
+  </footer>
 
   <script>
-    const socket = io();
+    const socket = io(); // connect to Flask backend
 
-    const log = document.getElementById("log");
-    const input = document.getElementById("input");
-    const sendBtn = document.getElementById("send");
+    // State (local for name, coins, stickers, etc.)
+    const STORE_KEY = 'LINK:v11';
+    const state = {
+      me: { id: '', name: '' },
+      room: 'General',
+      coins: 0,
+      messageCount: 0,
+      boughtStickers: []
+    };
 
-    function renderMessage(msg) {
-      const div = document.createElement("div");
-      div.textContent = `[${msg.user}] ${msg.text}`;
-      log.appendChild(div);
-      log.scrollTop = log.scrollHeight;
+    const freeStickers = ['fire.png','goofy.jpeg','ahh.jpeg','bruh.png','bk.jpeg'];
+    const shopStickers = [
+      {src:'adrian.jpeg', cost:100},
+      {src:'67.jpeg', cost:90},
+      {src:'skull.jpeg', cost:80},
+      {src:'rose.jpg', cost:70},
+      {src:'funky.jpeg', cost:60},
+      {src:'yes.jpeg', cost:50}
+    ];
+
+    const el = {
+      log: document.getElementById('log'),
+      input: document.getElementById('input'),
+      send: document.getElementById('send'),
+      room: document.getElementById('room'),
+      displayName: document.getElementById('displayName'),
+      saveName: document.getElementById('saveName'),
+      stickerPanel: document.getElementById('stickerPanel'),
+      shop: document.getElementById('shop'),
+      coinsDisplay: document.getElementById('coinsDisplay'),
+      clearRoom: document.getElementById('clearRoom'),
+      shareRoom: document.getElementById('shareRoom')
+    };
+
+    // Save & load state
+    function load(){
+      try{
+        const raw = localStorage.getItem(STORE_KEY);
+        if(raw) Object.assign(state, JSON.parse(raw));
+      }catch{}
+      if(!state.me.id) state.me.id = Math.random().toString(36).slice(2);
+      if(!state.me.name) state.me.name = 'Guest-' + state.me.id.slice(0,4);
+      save();
+    }
+    function save(){
+      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+      updateCoinsDisplay();
     }
 
-    socket.on("new_message", (msg) => {
-      renderMessage(msg);
-    });
+    function updateCoinsDisplay(){
+      el.coinsDisplay.textContent = "Coins: " + state.coins;
+    }
 
-    sendBtn.addEventListener("click", () => {
-      if (input.value.trim() !== "") {
-        socket.emit("send_message", { text: input.value });
-        input.value = "";
+    function renderMessage(m){
+      const wrap = document.createElement('div');
+      wrap.className = 'msg ' + (m.userId === state.me.id ? 'me' : 'other');
+      wrap.dataset.id = m.id;
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = m.name;
+      const time = document.createElement('span');
+      time.textContent = new Date(m.at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      meta.append(name,time);
+
+      const body = document.createElement('div');
+      body.className = 'body';
+      if(m.type === 'sticker'){
+        const img = document.createElement('img');
+        img.src = m.text;
+        img.classList.add('sticker');
+        body.appendChild(img);
+      }else{
+        body.textContent = m.text;
+      }
+
+      wrap.append(meta,body);
+      el.log.appendChild(wrap);
+      el.log.scrollTop = el.log.scrollHeight;
+    }
+
+    function renderStickers(){
+      el.stickerPanel.innerHTML='';
+      const allStickers = [...freeStickers, ...state.boughtStickers];
+      allStickers.forEach(src=>{
+        const img = document.createElement('img');
+        img.src=src;
+        img.classList.add('sticker');
+        img.addEventListener('click', ()=> send(src,'sticker'));
+        el.stickerPanel.appendChild(img);
+      });
+    }
+
+    function send(text, type='text'){
+      if(!text.trim()) return;
+      const msg = {
+        id: Math.random().toString(36).slice(2),
+        userId: state.me.id,
+        name: state.me.name,
+        text: text,
+        type: type,
+        at: new Date().toISOString(),
+        room: state.room
+      };
+      socket.emit('message', msg); // send to backend
+      renderMessage(msg); // render immediately
+      if(type === 'text'){
+        state.messageCount++;
+        if(state.messageCount % 5 === 0) state.coins++;
+      }
+      save();
+    }
+
+    // Events
+    el.send.addEventListener('click',()=>{ send(el.input.value); el.input.value=''; el.input.focus(); });
+    el.input.addEventListener('keydown',(e)=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); el.send.click(); }});
+    el.saveName.addEventListener('click',()=>{ const v=el.displayName.value.trim(); if(v){ state.me.name=v; save(); }});
+
+    // Socket listeners
+    socket.on('message', (m)=>{
+      if(m.userId !== state.me.id && m.room === state.room){
+        renderMessage(m);
       }
     });
 
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendBtn.click();
-      }
-    });
+    // Init
+    load();
+    el.displayName.value = state.me.name;
+    updateCoinsDisplay();
+    renderStickers();
   </script>
 </body>
 </html>
