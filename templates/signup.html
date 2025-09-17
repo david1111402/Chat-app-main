@@ -7,14 +7,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 <body>
+  <header>
+    <div class="brand">LINK</div>
+  </header>
+
   <main class="auth-container">
-    <h1 class="brand">LINK</h1>
-    <form method="POST" class="auth-form">
-      <input type="text" name="username" placeholder="Choose a username" required>
-      <input type="password" name="password" placeholder="Choose a password" required>
+    <h1 class="auth-title">Create Account</h1>
+    <form method="POST" action="/signup" class="auth-form">
+      <input type="text" name="username" placeholder="Username" required />
+      <input type="email" name="email" placeholder="Email" required />
+      <input type="password" name="password" placeholder="Password" required />
       <button type="submit">Sign Up</button>
     </form>
-    <p>Already have an account? <a href="{{ url_for('login') }}">Login</a></p>
+    <p class="auth-alt">Already have an account? <a href="/login">Login</a></p>
   </main>
+
+  <footer>
+    <p class="tiny">&copy; 2025 LINK</p>
+  </footer>
 </body>
 </html>
