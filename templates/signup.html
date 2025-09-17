@@ -2,25 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>LINK - Sign Up</title>
+  <title>Sign Up - LINK</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 <body>
-  <header>
-    <div class="brand">LINK</div>
-  </header>
-
-  <main class="form-container">
-    <h2>Sign Up</h2>
-    <form method="POST" action="/signup">
-      <input type="text" name="name" placeholder="Full Name" required />
-      <input type="email" name="email" placeholder="Email" required />
-      <input type="text" name="username" placeholder="Username" required />
-      <input type="password" name="password" placeholder="Password" required />
+  <main class="auth-container">
+    <h1 class="brand">LINK</h1>
+    <form method="POST" class="auth-form">
+      <input type="text" name="username" placeholder="Choose a username" required>
+      <input type="password" name="password" placeholder="Choose a password" required>
       <button type="submit">Sign Up</button>
     </form>
-    <p>Already have an account? <a href="/login">Login</a></p>
+    <p>Already have an account? <a href="{{ url_for('login') }}">Login</a></p>
   </main>
 </body>
 </html>
