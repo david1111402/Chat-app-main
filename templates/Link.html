@@ -2,68 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Chatroom</title>
+  <title>Chat</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
   <header>
     <h1>Welcome, {{ user.name }}</h1>
-    <a href="/call" class="btn">📞 Start Call</a>
+    <nav>
+      <a href="{{ url_for('logout') }}">Logout</a>
+    </nav>
   </header>
-
-  <main id="log"></main>
-
-  <footer>
-    <div class="composer">
-      <input id="input" type="text" placeholder="Type a message..." autocomplete="off">
-      <button id="send">Send</button>
+  
+  <main>
+    <div class="chat-box">
+      <p>Chat UI goes here...</p>
     </div>
-  </footer>
-
-  <script>
-    const socket = io();
-    const log = document.getElementById("log");
-    const input = document.getElementById("input");
-    const sendBtn = document.getElementById("send");
-    const room = "General";
-
-    function nowIso() { return new Date().toISOString(); }
-
-    function render(msg) {
-      const div = document.createElement("div");
-      div.textContent = `[${msg.name}] ${msg.text}`;
-      log.appendChild(div);
-      log.scrollTop = log.scrollHeight;
-    }
-
-    async function poll() {
-      const res = await fetch(`/history/${room}`);
-      const msgs = await res.json();
-      log.innerHTML = "";
-      msgs.forEach(render);
-    }
-
-    sendBtn.onclick = async () => {
-      const text = input.value.trim();
-      if (!text) return;
-      const msg = {
-        userId: "{{ user.id }}",
-        name: "{{ user.username }}",
-        text,
-        at: nowIso(),
-        room
-      };
-      await fetch("/send", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(msg)
-      });
-      input.value = "";
-    };
-
-    setInterval(poll, 2000);
-    poll();
-  </script>
+  </main>
 </body>
 </html>
